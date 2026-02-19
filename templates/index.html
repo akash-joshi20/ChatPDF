@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>ChatPDF</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        max-width: 800px;
+        margin: 30px auto;
+        padding: 20px;
+        background-color: #f9f9f9;
+      }
+      h1 {
+        text-align: center;
+        color: #333;
+      }
+      .upload-area {
+        text-align: center;
+        margin: 20px 0;
+      }
+      #chatbox {
+        height: 300px;
+        border: 1px solid #ccc;
+        padding: 10px;
+        margin: 15px 0;
+        overflow-y: auto;
+        background: white;
+      }
+      .message {
+        margin-bottom: 10px;
+        padding: 8px;
+      }
+      .user {
+        background-color: #ffe6e6;
+      }
+      .bot {
+        background-color: #e6f9ff;
+      }
+      input[type="text"] {
+        width: 70%;
+        padding: 10px;
+        margin-right: 10px;
+      }
+      button {
+        padding: 10px 15px;
+        background-color: #e74c3c;
+        color: white;
+        border: none;
+        cursor: pointer;
+      }
+      button:hover {
+        background-color: #c0392b;
+      }
+      .logout {
+        float: right;
+        font-size: 14px;
+        background: #6c757d;
+      }
+      .logout:hover {
+        background: #5a6268;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>ChatPDF 📄💬</h1>
+    <button class="logout" onclick="logout()">Logout</button>
+
+    <div class="upload-area">
+      <input type="file" id="pdfUpload" accept=".pdf" />
+      <button onclick="uploadPDF()">Upload PDF</button>
+    </div>
+
+    <div id="chatbox"></div>
+
+    <input
+      type="text"
+      id="question"
+      placeholder="Ask a question about the PDF..."
+    />
+    <button onclick="askQuestion()">Ask</button>
+
+    <script>
+      let currentPDFId = null;
+
+      async function uploadPDF() {
+        const fileInput = document.getElementById("pdfUpload");
+        const file = fileInput.files[0];
+        if (!file) {
+          alert("Please choose a PDF file.");
+          return;
+        }
+
+        const formData = new FormData();
+        formData.append("file", file);
+
+        try {
+          const response = await fetch("/upload", {
+            method: "POST",
+            body: formData,
+          });
+          const data = await response.json();
+
+          if (response.ok) {
+            currentPDFId = data.pdf_id;
+            addMessage("System", "✅ PDF uploaded!");
+          } else {
+            addMessage(
+              "System",
+              "❌ Error: " + (data.error || "Upload failed")
+            );
+          }
+        } catch (error) {
+          addMessage("System", "❌ Network error: " + error.message);
+        }
+      }
+
+      async function askQuestion() {
+        const input = document.getElementById("question");
+        const question = input.value.trim();
+        if (!question) {
+          alert("Please type a question.");
+          return;
+        }
+        if (!currentPDFId) {
+          alert("Please upload a PDF first.");
+          return;
+        }
+
+        addMessage("You", question);
+        input.value = "";
+
+        try {
+          const response = await fetch("/ask", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ question, pdf_id: currentPDFId }), // ← pdf_id
+          });
+          const data = await response.json();
+          const answer = data.answer || "Sorry, I don't know.";
+          addMessage("Bot", answer);
+        } catch (error) {
+          addMessage("Bot", "❌ Failed to get answer.");
+        }
+      }
+
+      async function logout() {
+        await fetch("/logout", { method: "POST" });
+        window.location.href = "/auth";
+      }
+
+      function addMessage(sender, text) {
+        const chatbox = document.getElementById("chatbox");
+        const msg = document.createElement("div");
+        msg.className = "message " + (sender === "You" ? "user" : "bot");
+        msg.innerHTML =
+          "<strong>" + sender + ":</strong> " + text.replace(/\n/g, "<br>");
+        chatbox.appendChild(msg);
+        chatbox.scrollTop = chatbox.scrollHeight;
+      }
+
+      document
+        .getElementById("question")
+        .addEventListener("keypress", function (event) {
+          if (event.key === "Enter") askQuestion();
+        });
+    </script>
+  </body>
+</html>
